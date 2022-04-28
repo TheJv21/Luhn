@@ -1,39 +1,120 @@
 version: "3.1"
 services:
-    db:
+
+# Ambiente de producción
+    db_prod:
         image: mysql
+        container_name: db_prod
         ports: 
             - "3306:3306"
         command: --default-authentication-plugin=mysql_native_password
         environment:
-            MYSQL_DATABASE: dbname
+            MYSQL_DATABASE: valid_nums
+            MYSQL_PASSWORD: test
+            MYSQL_ROOT_PASSWORD: test 
+        volumes:
+            - db_prod:/var/lib/mysql
+        networks:
+            - env_prod
+
+    www_prod:
+        build: .
+        container_name: luhn_prod
+        ports: 
+            - "80:80"
+        volumes:
+            - ./www/prod:/var/www/html
+        links:
+            - db_prod
+        networks:
+            - env_prod
+
+# Ambiente de preproducción
+    db_prep:
+        image: mysql
+        container_name: db_prep
+        ports: 
+            - "3366:3306"
+        command: --default-authentication-plugin=mysql_native_password
+        environment:
+            MYSQL_DATABASE: valid_nums
             MYSQL_PASSWORD: test
             MYSQL_ROOT_PASSWORD: test 
         volumes:
             - ./dump:/docker-entrypoint-initdb.d
             - ./conf:/etc/mysql/conf.d
-            - persistent:/var/lib/mysql
+            - db_prep:/var/lib/mysql
         networks:
-            - default
-    www:
+            - env_prep
+
+    www_prep:
         build: .
+        container_name: luhn_prep
         ports: 
-            - "80:80"
+            - "90:80"
         volumes:
-            - ./www:/var/www/html
+            - ./www/prep:/var/www/html
         links:
-            - db
+            - db_prep
         networks:
-            - default
-    phpmyadmin:
-        image: phpmyadmin/phpmyadmin
-        links: 
-            - db:db
+            - env_prep
+
+
+#Cliente base de datos
+
+    adminer:
+        container_name: adminer
+        image: adminer
+        restart: always
+        networks:
+        - env_prod
+        - env_prep
+        depends_on: 
+        - db_prod
+        - db_prep   
         ports:
-            - 8000:80
-        environment:
-            MYSQL_USER: root
-            MYSQL_PASSWORD: test
-            MYSQL_ROOT_PASSWORD: test 
+        - 9090:8080
+
+
+# Redes para producción y preproducción
+
+networks:
+  env_prod:
+    name: env_prod
+    driver: bridge  
+    #activate ipv6
+    driver_opts: 
+            com.docker.network.enable_ipv6: "true"
+    #IP Adress Manager
+    ipam: 
+        driver: default
+        config:
+        - 
+          subnet: 172.16.232.0/24
+          gateway: 172.16.232.1
+        - 
+          subnet: "2001:3974:3979::/64"
+          gateway: "2001:3974:3979::1"
+  env_prep:   
+    name: env_prep
+    driver: bridge  
+    #activate ipv6
+    driver_opts: 
+            com.docker.network.enable_ipv6: "true"
+    #IP Adress Manager
+    ipam:
+        driver: default
+        config:
+        - 
+          subnet: 172.16.235.0/24
+          gateway: 172.16.235.1
+        - 
+          subnet: "2001:3984:3989::/64"
+          gateway: "2001:3984:3989::1"
+
+
+# Persistencia de datos
+
 volumes:
-    persistent:
+    db_prod:
+    db_prep:
